@@ -1,4 +1,4 @@
-writer.sh
+
 
 #!/bin/sh
 #File name    : writer.sh
