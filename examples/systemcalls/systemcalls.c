@@ -1,5 +1,10 @@
 #include "systemcalls.h"
-
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,8 +21,15 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+	int result=system(cmd);
+	if(result == 0)
+	{
+		return true;
+	}
+	else
+       	{
+		return false;
+	}
 }
 
 /**
@@ -57,8 +69,33 @@ bool do_exec(int count, ...)
  *   (first argument to execv), and use the remaining arguments
  *   as second argument to the execv() command.
  *
-*/
-
+*/ 
+    int res;
+    pid_t pid;
+    pid=fork();
+    if(pid == -1){
+    	perror("fork");
+	exit (-1);
+    }
+    else if(pid == 0){
+	    int ret_val=execv(command[0],command);
+	    if(ret_val == -1){
+	   	perror("execv");
+		exit(-1);
+	    }
+    }
+    else{
+   	 pid_t id = waitpid(pid,&res,0);
+         if(id == -1){
+                perror("waitpid");
+		exit(-1);
+         }
+	 if(WIFEXITED(res)){
+	 	if(WEXITSTATUS(res)!=0){
+			return false;
+		}
+	 }
+    }
     va_end(args);
 
     return true;
@@ -92,7 +129,45 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
+    int res;    
+    pid_t pid;
+    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH ;
+    int fd =  open(outputfile, O_WRONLY|O_CREAT|O_TRUNC, mode );
+     if(fd == -1)
+     {
+	     perror("open");
+             abort();
+     }
+    pid=fork();
+    if(pid == -1){
+        perror("fork");
+        exit (-1);
+    }
+    else if(pid == 0){
+	    if (dup2(fd, 1) < 0)
+	    {
+		    perror("dup2");
+		    abort();
+	    }
+            int ret_val=execv(command[0],command);
+            if(ret_val == -1){
+                perror("execv");
+                exit(-1);
+            }
+    }
+    else{
+   	 pid_t id = waitpid(pid,&res,0);
+         if(id == -1){
+                perror("waitpid");
+                return false;
+	 }
+         if(WIFEXITED(res)){
+                if(WEXITSTATUS(res)!=0){
+                        return false;
+                }
+         }
+    }
+    close(fd);
     va_end(args);
 
     return true;
