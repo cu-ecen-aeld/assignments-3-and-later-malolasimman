@@ -1,3 +1,8 @@
+/*Author : Malola Simman Srinivasan Kannan
+ *Mail id: masr4788@colorado.edu
+ *File name: systemcall.c
+ *Date : 4 Februrary 2024	 
+ */
 #include "systemcalls.h"
 #include <unistd.h>
 #include <stdlib.h>
@@ -21,14 +26,14 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-	int result=system(cmd);
-	if(result == 0)
+	int result=system(cmd); //calling system call 
+	if(result == 0)		//checking system call is successfull
 	{
-		return true;
+		return true;	//return true if system call is successfull
 	}
 	else
        	{
-		return false;
+		return false;   //return false if fails to execute system call
 	}
 }
 
@@ -72,27 +77,33 @@ bool do_exec(int count, ...)
 */ 
     int res;
     pid_t pid;
-    pid=fork();
-    if(pid == -1){
-    	perror("fork");
+    pid=fork(); // creating child process
+    if(pid == -1)//checking whether fork is failed
+    {
+    	perror("fork");//print error and exit
 	exit (-1);
     }
-    else if(pid == 0){
-	    int ret_val=execv(command[0],command);
-	    if(ret_val == -1){
-	   	perror("execv");
+    else if(pid == 0)//checking child is created
+    {
+	    int ret_val=execv(command[0],command);//replaces the current process with a new process 
+	    if(ret_val == -1) //checks execv fails
+	    {
+	   	perror("execv");//print error and exit
 		exit(-1);
 	    }
     }
     else{
-   	 pid_t id = waitpid(pid,&res,0);
-         if(id == -1){
-                perror("waitpid");
+   	 pid_t id = waitpid(pid,&res,0);//wait until child process completes
+         if(id == -1)//checks whether waitpid fails
+	 {
+                perror("waitpid");//print waitpid fails and exit
 		exit(-1);
          }
-	 if(WIFEXITED(res)){
-	 	if(WEXITSTATUS(res)!=0){
-			return false;
+	 if(WIFEXITED(res))//returns true if the child terminated normally
+	 {
+	 	if(WEXITSTATUS(res)!=0)//returns the exit status of the child.
+		{
+			return false; //if WEXITSTATUS fails return false
 		}
 	 }
     }
