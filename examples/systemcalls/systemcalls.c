@@ -1,5 +1,15 @@
+/*Author : Malola Simman Srinivasan Kannan
+ *Mail id: masr4788@colorado.edu
+ *File name: systemcall.c
+ *Date : 4 Februrary 2024	 
+ */
 #include "systemcalls.h"
-
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -16,8 +26,15 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+	int result=system(cmd); //calling system call 
+	if(result == 0)		//checking system call is successfull
+	{
+		return true;	//return true if system call is successfull
+	}
+	else
+       	{
+		return false;   //return false if fails to execute system call
+	}
 }
 
 /**
@@ -57,8 +74,39 @@ bool do_exec(int count, ...)
  *   (first argument to execv), and use the remaining arguments
  *   as second argument to the execv() command.
  *
-*/
-
+*/ 
+    int res;
+    pid_t pid;
+    pid=fork(); // creating child process
+    if(pid == -1)//checking whether fork is failed
+    {
+    	perror("fork");//print error and exit
+	exit (-1);
+    }
+    else if(pid == 0)//checking child is created
+    {
+	    int ret_val=execv(command[0],command);//replaces the current process with a new process 
+	    if(ret_val == -1) //checks execv fails
+	    {
+	   	perror("execv");//print error and exit
+		exit(-1);
+	    }
+    }
+    else{
+   	 pid_t id = waitpid(pid,&res,0);//wait until child process completes
+         if(id == -1)//checks whether waitpid fails
+	 {
+                perror("waitpid");//print waitpid fails and exit
+		exit(-1);
+         }
+	 if(WIFEXITED(res))//returns true if the child terminated normally
+	 {
+	 	if(WEXITSTATUS(res)!=0)//returns the exit status of the child.
+		{
+			return false; //if WEXITSTATUS fails return false
+		}
+	 }
+    }
     va_end(args);
 
     return true;
@@ -92,7 +140,45 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
+    int res;    
+    pid_t pid;
+    mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH ;
+    int fd =  open(outputfile, O_WRONLY|O_CREAT|O_TRUNC, mode );
+     if(fd == -1)
+     {
+	     perror("open");
+             abort();
+     }
+    pid=fork();
+    if(pid == -1){
+        perror("fork");
+        exit (-1);
+    }
+    else if(pid == 0){
+	    if (dup2(fd, 1) < 0)
+	    {
+		    perror("dup2");
+		    abort();
+	    }
+            int ret_val=execv(command[0],command);
+            if(ret_val == -1){
+                perror("execv");
+                exit(-1);
+            }
+    }
+    else{
+   	 pid_t id = waitpid(pid,&res,0);
+         if(id == -1){
+                perror("waitpid");
+                return false;
+	 }
+         if(WIFEXITED(res)){
+                if(WEXITSTATUS(res)!=0){
+                        return false;
+                }
+         }
+    }
+    close(fd);
     va_end(args);
 
     return true;
