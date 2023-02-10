@@ -1,3 +1,8 @@
+/* Author name: Malola Simman Srinivasan Kannan 
+ * file name : threading.c
+ * Mail id: masr4788@colorado.edu
+ * Date : 8 Feb 2023
+ */
 #include <stdbool.h>
 #include <pthread.h>
 
@@ -14,14 +19,15 @@ struct thread_data{
      * between the start_thread_obtaining_mutex function and
      * your thread implementation.
      */
-     pthread_mutex_t *lock;
-     int wait_to_obtain;
-     int wait_to_release;
+	// created struct members
+     pthread_mutex_t *lock; // mutex lock variable
+     int wait_to_obtain; // wait for obtain sleep time
+     int wait_to_release; // wait for release sleep time
     /**
      * Set to true if the thread completed with success, false
      * if an error occurred.
      */
-    bool thread_complete_success;
+    bool thread_complete_success; // thread complete status variable
 };
 
 
