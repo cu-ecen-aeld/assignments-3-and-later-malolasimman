@@ -1,5 +1,5 @@
 /* Author name: Malola Simman Srinivasan Kannan 
- * file name : threading.c
+ * file name : threading.h
  * Mail id: masr4788@colorado.edu
  * Date : 8 Feb 2023
  */
