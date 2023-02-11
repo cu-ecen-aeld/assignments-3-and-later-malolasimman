@@ -1,5 +1,5 @@
 CC= $(CROSS_COMPILE)gcc
-CFlags= -g -Wall
+CFlags= -g -Wall -Werror -Wextra
 .PHONY : all
 
 all: writer
