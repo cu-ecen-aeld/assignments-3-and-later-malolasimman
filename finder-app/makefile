@@ -1,5 +1,5 @@
 CFlags= -g -Wall
-CROSS_COMPILE=$(something)
+CROSS_COMPILE=
 CC= gcc
 .PHONY : all
 
