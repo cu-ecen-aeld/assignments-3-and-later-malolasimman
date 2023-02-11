@@ -54,10 +54,10 @@ fi
 
 for i in $( seq 1 $NUMFILES)
 do
-	./writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
+	writer "$WRITEDIR/${username}$i.txt" "$WRITESTR"
 done
 
-OUTPUTSTRING=$(./finder.sh "$WRITEDIR" "$WRITESTR")
+OUTPUTSTRING=$(finder.sh "$WRITEDIR" "$WRITESTR")
 FINDER_RES_DIR=/tmp/assignment4-result.txt
 echo ${OUTPUTSTRING}  >  ${FINDER_RES_DIR}
 # remove temporary directories
