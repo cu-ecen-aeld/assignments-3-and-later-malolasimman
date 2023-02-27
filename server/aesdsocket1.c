@@ -24,8 +24,8 @@ struct addrinfo hints, *servinfo, *p; // address info structs
 struct sockaddr_in conn_Addr; // socket address struct
 int accept_rc; // accept return value
 char *ptr; // pointer to hold dynamic memory
+void signal_handler(int sig); // signal handler function prototype
 
-// signal handler function prototype
 void signal_handler(int sig)
 {
 	if(sig==SIGINT)
@@ -202,7 +202,7 @@ int main(int argc, char *argv[])
                                 close(fd);
                                 write_flag=false;
                                 total_packet_size += bytes_to_write;
-                                int op_fd=open("/var/tmp/aesdsocketdata",O_RDONLY);//opening file
+                                int op_fd=open("/var/tmp/aesdsocketdata.txt",O_RDONLY);//opening file
                                 if(op_fd==-1)
                                 {
                                         syslog(LOG_ERR, "fail to open");
@@ -222,9 +222,6 @@ int main(int argc, char *argv[])
                                 {
                                         syslog(LOG_ERR, "Not read complete bytes");
                                         exit(17);
-                                }
-                                for(int j=0; j<total_packet_size; j++){
-                                        printf("%c",read_arr[j]);
                                 }
                                 send_rc=send(accept_rc,&read_arr,total_packet_size,0);//sending packet to client 
                                 if(send_rc==-1)
@@ -250,5 +247,3 @@ int main(int argc, char *argv[])
         }
         return 0;
 }
-
-
