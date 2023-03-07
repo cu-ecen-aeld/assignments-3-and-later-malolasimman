@@ -20,14 +20,18 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/queue.h>
+
+//Macros
 #define buffer_size 1024
-#define TIMESTAMP_SIZE (128)
+#define TIMESTAMP_LEN (128)
 #define SOCKET_PATH "/var/tmp/aesdsocketdata"
 
-void cleanup_on_exit();
+//function declarations
+void cleanup();
 SLIST_HEAD(client_list_head_t, thread_args);
-struct client_list_head_t client_head;
+
 //Global variables
+struct client_list_head_t client_head;
 int sockfd; //socket file descriptor
 struct addrinfo hints, *servinfo, *p; // address info structs
 struct sockaddr_in conn_Addr; // socket address struct
@@ -50,6 +54,7 @@ struct thread_args
 };
 typedef struct thread_args thread_param;
 thread_param *th_data=NULL;
+
 // signal handler function prototype
 void signal_handler(int sig)
 {
@@ -65,8 +70,10 @@ void signal_handler(int sig)
     }
   unlink("/var/tmp/aesdsocketdata"); //Deletes a file
   //Close socket and client connection
-  cleanup_on_exit();
+  cleanup();
 }
+
+//initializing thread param
 thread_param* init_thread_param(){
   th_data = (thread_param*)malloc(sizeof(thread_param));
   th_data->IP_addr = conn_Addr;
@@ -75,21 +82,18 @@ thread_param* init_thread_param(){
   SLIST_INSERT_HEAD(&client_head, th_data , ll_entries);
   return (th_data);
 }
+//thread function
 void* thread_func(void *arg)
 {
-  //fd = open("/var/tmp/aesdsocketdata", O_APPEND | O_WRONLY);
-  
-  
   ptr = (char*)malloc(1);
       if(ptr==NULL)
         {
           perror("malloc");
-          cleanup_on_exit();
+          cleanup();
           exit(14);
         }
   printf("1\n");
   printf("enters thread\n");
-  thread_param *th = (thread_param *)arg;
   ssize_t wr_bytes=0;
   int total_packet_size=0;
   char buffer[buffer_size];
@@ -100,10 +104,11 @@ void* thread_func(void *arg)
   rec_fd=recv(accept_rc,buffer,buffer_size,0);
   if(rec_fd==-1)
     {
+      free(ptr);
       syslog(LOG_ERR, "Error in receiving of data packets from client");
       perror("recv");
-      cleanup_on_exit();
-      pthread_exit(NULL);
+      cleanup();
+      return NULL;
       //exit(6);
     }
   while( (rec_fd!=0) && (!sig_flag) ) // receiving packets
@@ -125,9 +130,9 @@ void* thread_func(void *arg)
       ptr=(char *)realloc(ptr,bytes_to_write+1);//reallocating memory
       if(ptr==NULL)
         {
+          free(ptr);
           perror("realloc");
-          pthread_exit(NULL);
-          //exit(8);
+          return NULL;
         }
       memcpy(ptr+bytes_to_write-i,buffer,i);// copying the buffer to pointer
       memset(buffer,0,buffer_size);// clearing buffer
@@ -136,14 +141,12 @@ void* thread_func(void *arg)
           pthread_mutex_lock(&lock);
           wr_bytes= write(fd,ptr,bytes_to_write); //write packets contents to file
           pthread_mutex_unlock(&lock);
-          //pthread_mutex_unlock(&lock);
           if(wr_bytes!=bytes_to_write)
             {
+              free(ptr);
               perror("write");
-              pthread_exit(NULL);
-              //exit(8);
+              return NULL;
             }
-          //close(fd);
           write_flag=false;
           total_packet_size += bytes_to_write;
           char *read_arr;
@@ -158,16 +161,16 @@ void* thread_func(void *arg)
           pthread_mutex_unlock(&lock);
           if(rd_status==-1)
             {
+              free(ptr);
               syslog(LOG_ERR, "fail to read");
               perror("read");
-              pthread_exit(NULL);
-              //exit(11);
+              return NULL;
             }
           else if(rd_status < total_packet_size)
             {
+              free(ptr);
               syslog(LOG_ERR, "Not read complete bytes");
-              pthread_exit(NULL);
-              //exit(17);
+              return NULL;
             }
           for(int j=0; j<total_packet_size; j++){
               printf("%c",read_arr[j]);
@@ -177,44 +180,58 @@ void* thread_func(void *arg)
         
           if(send_rc==-1)
             {
+              free(ptr);
               syslog(LOG_ERR, "fail to send packets");
               perror("send");
-              pthread_exit(NULL);
-              //exit(12);
+              return NULL;
             }
           
-          //close(op_fd); //closing file
           bytes_to_write =0;
         }
       rec_fd=recv(accept_rc,buffer,buffer_size,0);//receiving next packets
       if(rec_fd==-1)
         {
+          free(ptr);
           perror("recv");
-          pthread_exit(NULL);
-          //exit(6);
+          return NULL;
         }
     }
-  //pthread_mutex_unlock(&lock);
-  free(th);
+    free(ptr);
   return NULL;
 }
-void * log_timestamp_write()
+void * log_timestamp()
 {
-  time_t curr_time;
-  struct tm * curr_localtime_info;
-  char timestamp[TIMESTAMP_SIZE];
-  sleep(10);              //sleep for 10 sec and allow preemption
+  time_t curr_time;                 // stores the current time
+  struct tm * curr_localtime;       // stores the local time representation of the current time
+  char timestamp[TIMESTAMP_LEN];    // stores the formatted timestamp string
+
+  sleep(10);                        // sleep for 10 sec and allow preemption
+
+  // continue logging timestamps until the sig_flag is set to a non-zero value
   while (!sig_flag)
     {
+      // get the current time and convert it to local time
       time(&curr_time);
-      curr_localtime_info = localtime(&curr_time);
-      strftime(timestamp, sizeof(timestamp), "timestamp:%a, %d %b %Y %T %z\n", curr_localtime_info);
+      curr_localtime = localtime(&curr_time);
+
+      // format the local time as a string and store it in the timestamp buffer
+      strftime(timestamp, sizeof(timestamp), "timestamp:%a, %d %b %Y %T %z\n", curr_localtime);
+
+      // acquire a lock on the mutex to protect access to the shared file descriptor
       pthread_mutex_lock(&lock);
+
+      // seek to the end of the file and append the timestamp
       lseek(fd, 0, SEEK_END);
       write(fd, timestamp, strlen(timestamp));
+
+      // release the lock on the mutex
       pthread_mutex_unlock(&lock);
-      sleep(10);  //sleep for 10 secand allow preemption
+
+      // sleep for 10 seconds to allow preemption
+      sleep(10);
     }
+
+  // return NULL
   return NULL;
 }
 //Main functions
@@ -227,46 +244,44 @@ int main(int argc, char *argv[])
   int value = 1;
   //int total_packet_size=0;
   fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND | O_CREAT, 0744);
-  
-  openlog(NULL, LOG_CONS | LOG_PID | LOG_PERROR, LOG_USER);                                                                 /*open connection for sys logging, ident is NULL to use this Program for the user level messages*/
+  if(fd == -1)
+    {
+      perror("file open failed\n");
+      syslog(LOG_ERR,"file open failed");
+      cleanup();
+      return (EXIT_FAILURE);
+    }
+  openlog(NULL, LOG_CONS | LOG_PID | LOG_PERROR, LOG_USER); /*open connection for sys logging, ident is NULL to use this Program for the user level messages*/
   if((argc>1) && strcmp(argv[1],"-d")==0)// check for daemon mode flag
     {
       if(daemon(0,0)==-1)// set to daemon mode
         {
           syslog(LOG_ERR, "daemon mode failed");
-          cleanup_on_exit();
+          cleanup();
           exit(1);
         }
     }
   if(signal(SIGINT,signal_handler)==SIG_ERR)// handle SIGINT signal
     {
       syslog(LOG_ERR,"SIGINT failed");
-      cleanup_on_exit();
+      cleanup();
       exit(2);
     }
   if(signal(SIGTERM,signal_handler)==SIG_ERR)
     {
       syslog(LOG_ERR,"SIGTERM failed");// handle SIGTERM signal
-      cleanup_on_exit();
+      cleanup();
       exit(3);
     }
   SLIST_INIT(&client_head);
   pthread_mutex_init(&lock,NULL);
-  fd = open("/var/tmp/aesdsocketdata", O_CREAT | O_RDWR | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
-  if(fd == -1)
-    {
-      perror("file open failed\n");
-      syslog(LOG_ERR,"file open failed");
-      cleanup_on_exit();
-      return (EXIT_FAILURE);
-    }
   //create socket
   sockfd=socket(AF_INET, SOCK_STREAM, 0);
   if(sockfd==-1)
     {
       syslog(LOG_ERR, "fail to create socket");
       perror("socket");
-      cleanup_on_exit();
+      cleanup();
       exit(1);
     }
   // Set socket options for reusing address and port
@@ -274,7 +289,7 @@ int main(int argc, char *argv[])
     {
       printf("Error: %s : Failed to set socket options\n", strerror(errno));
       syslog(LOG_ERR, "Error: %s : Failed to set socket options\n", strerror(errno));
-      cleanup_on_exit();
+      cleanup();
       return -1;
     }
   //Get address
@@ -284,7 +299,7 @@ int main(int argc, char *argv[])
     {
       syslog(LOG_ERR, "fail to get server address");
       perror("getaddrinfo");
-      cleanup_on_exit();
+      cleanup();
       exit(2);
     }
   //Bind
@@ -294,7 +309,7 @@ int main(int argc, char *argv[])
       freeaddrinfo(servinfo);
       syslog(LOG_ERR, "fails to bind");
       perror("bind");
-      cleanup_on_exit();
+      cleanup();
       exit(3);
     }
   freeaddrinfo(servinfo);// free memory allocated for servinfo struct
@@ -305,11 +320,11 @@ int main(int argc, char *argv[])
     {
       syslog(LOG_ERR, "failed to listen connection");
       perror("listen");
-      cleanup_on_exit();
+      cleanup();
       exit(4);
     }
   pthread_t timestamp;
-  pthread_create(&timestamp, NULL, log_timestamp_write, NULL);
+  pthread_create(&timestamp, NULL, log_timestamp, NULL);
   while(!sig_flag)
     {
       //accept
@@ -318,7 +333,7 @@ int main(int argc, char *argv[])
         {
           syslog(LOG_ERR, "fail to accept");
           perror("accept");
-          cleanup_on_exit();
+          cleanup();
           exit(6);
         }
       else
@@ -344,24 +359,26 @@ int main(int argc, char *argv[])
       syslog(LOG_INFO,"Closing connection from %s",inet_ntoa(conn_Addr.sin_addr));
       closelog();
     }
-  cleanup_on_exit();
+  cleanup();
   return 0;
 }
 
 
-void cleanup_on_exit()
+void cleanup()
 {
+  // close open file descriptors
   close(fd);
   close(sockfd);
   close(accept_rc);
 
- // th_data_t *th_data;
+  // free allocated memory for each client thread data structure
   SLIST_FOREACH(th_data, &client_head, ll_entries)
   {
-    if (ptr)
-      free(ptr);
+    if (th_data)
+      free(th_data);
   }
 
+  // free memory for the head of the client thread data structure
   while (!SLIST_EMPTY(&client_head))
   {
     th_data = SLIST_FIRST(&client_head);
@@ -369,13 +386,17 @@ void cleanup_on_exit()
     free(th_data);
   }
 
+  // initialize the client thread data structure head
   SLIST_INIT(&client_head);
+
+  // destroy the mutex lock
   pthread_mutex_destroy(&lock);
 
+  // remove the socket file
   if (unlink(SOCKET_PATH) == -1) {
     perror("Failed to remove socket file");
   }
 
+  // close the system log
   closelog();
 }
-
