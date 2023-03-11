@@ -7,6 +7,7 @@
  * @copyright Copyright (c) 2020
  *
  */
+
 #ifdef __KERNEL__
 #include <linux/string.h>
 #else
@@ -28,23 +29,9 @@
 struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct aesd_circular_buffer *buffer,
             size_t char_offset, size_t *entry_offset_byte_rtn )
 {
-    uint8_t index = buffer->out_offs, j=0;
-    struct aesd_buffer_entry *entry;
-    size_t total_bytes =0;
-    
-    //AESD_CIRCULAR_BUFFER_FOREACH(entry,buffer,index) 
-    while (((index != buffer->in_offs) || buffer->full) && (j++ < AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)) 
-    {
-	entry = &buffer->entry[index];
-        size_t each_entry_size =  entry->size ;
-        if (char_offset < total_bytes + each_entry_size) {
-            *entry_offset_byte_rtn = char_offset - total_bytes;
-            return entry;
-        }
-        total_bytes = total_bytes + each_entry_size;
-	index = (index + 1) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
-    }
-
+    /**
+    * TODO: implement per description
+    */
     return NULL;
 }
 
@@ -57,34 +44,9 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 */
 void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
-    //Implemented as per description
-    if( (add_entry != NULL) && (buffer != NULL) )
-    {
-        if(buffer->full)
-        {
-            buffer->out_offs = (buffer->out_offs + 1 ) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
-            buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
-            buffer->entry[buffer->in_offs].size = add_entry->size;
-	    buffer->in_offs = (buffer->in_offs + 1) %  AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
-        } 
-        else 
-        {
-            buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
-            buffer->entry[buffer->in_offs].size = add_entry->size;
-	    buffer->in_offs = (buffer->in_offs + 1) %  AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED;
-            if (buffer->in_offs == buffer->out_offs) 
-            {
-                buffer->full = true;  
-            }
-        }
-        //buffer->entry[buffer->in_offs].size = add_entry->size;
-
-    }
-    else 
-    {
-        // invalid arguments ;
-    }
-
+    /**
+    * TODO: implement per description
+    */
 }
 
 /**
