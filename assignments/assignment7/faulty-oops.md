@@ -41,18 +41,18 @@ Call trace:
 Code: d2800001 d2800000 d503233f d50323bf (b900003f) 
 ---[ end trace 191938470c5445f5 ]---
 
-objectdump:
-0000000000000000 <faulty_write>:
-   0:	d503245f 	bti	c
-   4:	d2800001 	mov	x1, #0x0                   	// #0
-   8:	d2800000 	mov	x0, #0x0                   	// #0
-   c:	d503233f 	paciasp
-  10:	d50323bf 	autiasp
-  14:	b900003f 	str	wzr, [x1]
-  18:	d65f03c0 	ret
-  1c:	d503201f 	nop
-line 4: d2800001 mov x1, #0x0 ; assigns 0x0 to x1
-line 14: b900003f str wzr, [x1] ; attempts to access at content at dereference by x1 - ( dereferencing a NULL pointer)
+objectdump: <br>
+0000000000000000 <faulty_write>:<br>
+   0:	d503245f 	bti	c<br>
+   4:	d2800001 	mov	x1, #0x0                   	// #0<br>
+   8:	d2800000 	mov	x0, #0x0                   	// #0<br>
+   c:	d503233f 	paciasp<br>
+  10:	d50323bf 	autiasp<br>
+  14:	b900003f 	str	wzr, [x1]<br>
+  18:	d65f03c0 	ret<br>
+  1c:	d503201f 	nop<br>
+line 4: d2800001 mov x1, #0x0 ; assigns 0x0 to x1<br>
+line 14: b900003f str wzr, [x1] ; attempts to access at content at dereference by x1 - ( dereferencing a NULL pointer)</br>
 
 Explanation for qemu reboot:
 Based on the call trace, it appears that the issue occurred during the execution of faulty_write. 
