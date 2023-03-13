@@ -54,7 +54,8 @@ Code: d2800001 d2800000 d503233f d50323bf (b900003f)
 line 4: d2800001 mov x1, #0x0 ; assigns 0x0 to x1<br>
 line 14: b900003f str wzr, [x1] ; attempts to access at content at dereference by x1 - ( dereferencing a NULL pointer)</br>
 
-<b>Explanation for qemu reboot:</b>
-Based on the call trace, it appears that the issue occurred during the execution of faulty_write. 
-Upon disassembling the faulty.ko file, it was observed that the value 0 was being written to a memory address of 0x10, which is an invalid location. 
-As a result, there is a risk of overwriting random memory and causing problems. This could lead to the qemu rebooting to resolve the error.
+<b>Explanation for qemu reboot:</b><br>
+Based on the call trace, it appears that the issue occurred during the execution of faulty_write. <br>
+Upon disassembling the faulty.ko file, it was observed that the value 0 was being written to a memory address of 0x10, which is an invalid location. <br>
+As a result, there is a risk of overwriting random memory and causing problems. This could lead to the qemu rebooting to resolve the error.<br>
+</br>
