@@ -25,12 +25,13 @@
 #define buffer_size 1024
 #define TIMESTAMP_LEN (128)
 
+//#define SOCKET_PATH "/var/tmp/aesdsocketdata"
 
 #define USE_AESD_CHAR_DEVICE    1
 #if (USE_AESD_CHAR_DEVICE)
-const char *FILE_PATH = "/dev/aesdchar";
+const char *SOCKET_PATH = "/dev/aesdchar";
 #elif (!USE_AESD_CHAR_DEVICE)
-const char *FILE_PATH = "/var/tmp/aesdsocketdata";
+const char *SOCKET_PATH = "/var/tmp/aesdsocketdata";
 #endif
 
 //function declarations
@@ -75,6 +76,7 @@ void signal_handler(int sig)
       sig_flag = 1;
       syslog(LOG_INFO," SIGTERM occurred");
     }
+  unlink("/var/tmp/aesdsocketdata"); //Deletes a file
   //Close socket and client connection
   cleanup();
 }
@@ -205,7 +207,6 @@ void* thread_func(void *arg)
     free(ptr);
   return NULL;
 }
-#ifndef USE_AESD_CHAR_DEVICE
 void * log_timestamp()
 {
   time_t curr_time;                 // stores the current time
@@ -241,8 +242,6 @@ void * log_timestamp()
   // return NULL
   return NULL;
 }
-#endif
-
 //Main functions
 int main(int argc, char *argv[])
 {
@@ -252,7 +251,7 @@ int main(int argc, char *argv[])
   int listen_rc=0;
   int value = 1;
   //int total_packet_size=0;
-  fd = open(FILE_PATH, O_RDWR | O_APPEND | O_CREAT, 0744);
+  fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND | O_CREAT, 0744);
   if(fd == -1)
     {
       perror("file open failed\n");
@@ -332,10 +331,8 @@ int main(int argc, char *argv[])
       cleanup();
       exit(4);
     }
-#ifndef USE_AESD_CHAR_DEVICE
   pthread_t timestamp;
   pthread_create(&timestamp, NULL, log_timestamp, NULL);
-#endif
   while(!sig_flag)
     {
       //accept
@@ -404,7 +401,7 @@ void cleanup()
   pthread_mutex_destroy(&lock);
 
   // remove the socket file
-  if (unlink(FILE_PATH) == -1) {
+  if (unlink(SOCKET_PATH) == -1) {
     perror("Failed to remove socket file");
   }
 

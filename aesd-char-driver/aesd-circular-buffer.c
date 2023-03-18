@@ -9,11 +9,13 @@
  */
 #ifdef __KERNEL__
 #include <linux/string.h>
+#include <linux/slab.h>
 #else
 #include <string.h>
 #endif
 
 #include "aesd-circular-buffer.h"
+#include <stdlib.h>
 
 /**
  * @param buffer the buffer to search for corresponding offset.  Any necessary locking must be performed by caller.
@@ -55,13 +57,15 @@ struct aesd_buffer_entry *aesd_circular_buffer_find_entry_offset_for_fpos(struct
 * Any necessary locking must be handled by the caller
 * Any memory referenced in @param add_entry must be allocated by and/or must have a lifetime managed by the caller.
 */
-void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
+const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_buffer_entry *add_entry)
 {
+	const char *overflow =NULL;
     //Implemented as per description
     if( (add_entry != NULL) && (buffer != NULL) )
     {
         if(buffer->full)
         {
+	    overflow = buffer->entry[buffer->in_offs].buffptr ;
             buffer->out_offs = (buffer->out_offs + 1 ) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
             buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
             buffer->entry[buffer->in_offs].size = add_entry->size;
@@ -77,14 +81,13 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
                 buffer->full = true;  
             }
         }
-        //buffer->entry[buffer->in_offs].size = add_entry->size;
-
     }
     else 
     {
-        // invalid arguments ;
+        // Invalid arguments
+	return NULL;
     }
-
+    return overflow;
 }
 
 /**
@@ -93,4 +96,26 @@ void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const s
 void aesd_circular_buffer_init(struct aesd_circular_buffer *buffer)
 {
     memset(buffer,0,sizeof(struct aesd_circular_buffer));
+}
+
+/**
+ *  clean up function
+ */
+
+void cbuffer_exit_cleanup(struct aesd_circular_buffer *buf)
+{
+        struct aesd_buffer_entry *entry;
+        uint8_t iter;
+
+        AESD_CIRCULAR_BUFFER_FOREACH(entry, buf, iter)
+        {
+                if(entry->buffptr != NULL)
+                {
+#ifdef __KERNEL__
+                        kfree(entry->buffptr);
+#else
+                        free((char *)entry->buffptr);
+#endif
+                }
+        }
 }
