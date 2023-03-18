@@ -166,7 +166,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         device->cb_entry.size += count;
 
         }
-    if(strchr(device->buffer_entry.buffptr, "\n"))
+    if(strchr(device->buffer_entry.buffptr, '\n'))
         {
                 //adding entry to circular buffer  
                 const char *res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
