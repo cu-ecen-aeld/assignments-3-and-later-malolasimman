@@ -20,6 +20,7 @@
 #include <linux/slab.h> //dynamic memory
 #include <linux/string.h> //string header
 #include <linux/errno.h> 
+#include <linux/uaccess.h>
 #include "aesdchar.h"
 #include "aesd-circular-buffer.h"
 int aesd_major =   0; // use dynamic major
@@ -67,7 +68,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     {
         return -ERESTARTSYS;
     }
-    struct aesd_buffer_entry *ret = aesd_circular_buffer_find_entry_offset_for_f_pos(&device->cb_entry, *f_pos, &entry_offset);
+    struct aesd_buffer_entry *ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb_entry, *f_pos, &entry_offset);
     if (ret == NULL)
     {
         PDEBUG("read byte not found");
