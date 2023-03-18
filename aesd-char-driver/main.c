@@ -21,6 +21,7 @@
 #include <linux/string.h> //string header
 #include <linux/errno.h> 
 #include "aesdchar.h"
+#include "aesd-circular-buffer.h"
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
