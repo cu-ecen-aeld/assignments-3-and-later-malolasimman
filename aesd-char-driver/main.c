@@ -62,28 +62,28 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     /**
      * TODO: handle read struct aesd_circular_buffer *buffer
      */
-    int rc = mutex_lock_interruptible(&(device->dev_lock));
-    if(rc !=0)
+    int val = mutex_lock_interruptible(&(device->dev_lock));
+    if(val !=0)
     {
         return -ERESTARTSYS;
     }
-    struct aesd_buffer_entry *ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb_entry,*fpos, &entry_offset);
+    struct aesd_buffer_entry *ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb_entry, *fpos, &entry_offset);
     if (ret == NULL)
     {
         PDEBUG("read byte not found");
         *f_pos = 0;
         retval = 0;
-        goto exit_read:
+        goto exit_read;
     }
     ssize_t readbytes = ret->size - entry_offset ;
-    if(readbytes < = count )
+    if(readbytes <= count )
     { 
         rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
         if(rc)
         {
             PDEBUG("fail to copy from userspace");
             retval = -EFAULT;
-		    goto exit_read;
+                    goto exit_read;
         }
         else 
         {
@@ -99,7 +99,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
         {
             PDEBUG("fail to copy from userspace");
             retval = -EFAULT;
-		    goto exit_read;
+                    goto exit_read;
         }
         else 
         {
@@ -142,7 +142,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         if(ret)
         {
             retval = -EFAULT;
-		    goto exit_write;
+                    goto exit_write;
         }
         device->cb_entry.size += count;
 
@@ -161,22 +161,22 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         {
             PDEBUG("fail to copy from userspace");
             retval = -EFAULT;
-		    goto exit_write;
+                    goto exit_write;
         }
         device->cb_entry.size += count;
 
-	}
-    if(strpbrk(device->buffer_entry.buffptr, "\n"))
-	{
-		//adding entry to circular buffer  
-		const char *res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
-		if(res != NULL)
+        }
+    if(strchr(device->buffer_entry.buffptr, "\n"))
+        {
+                //adding entry to circular buffer  
+                const char *res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
+                if(res != NULL)
         {
             kfree(res);
         }
-		device->cb_entry.buffptr =  NULL; 
-		device->cb_entry.size = 0;
-	}
+                device->cb_entry.buffptr =  NULL; 
+                device->cb_entry.size = 0;
+        }
     retval = count;
 
 exit_write:
