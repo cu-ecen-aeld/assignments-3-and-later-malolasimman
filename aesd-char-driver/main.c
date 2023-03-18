@@ -78,7 +78,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     ssize_t readbytes = ret->size - entry_offset ;
     if(readbytes < = count )
     { 
-        rc = copy_to_user(buf, ret->buffptr+entry_offset, readbytes);
+        rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
         if(rc)
         {
             PDEBUG("fail to copy from userspace");
@@ -94,7 +94,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     else 
     {
         readbytes = count ;
-        rc = copy_to_user(buf, ret->buffptr+entry_offset, readbytes);
+        rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
         if(rc)
         {
             PDEBUG("fail to copy from userspace");
@@ -166,7 +166,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         device->cb_entry.size += count;
 
 	}
-    if(strpbrk(device->buffer_entry.buffptr, '\n'))
+    if(strpbrk(device->buffer_entry.buffptr, "\n"))
 	{
 		//adding entry to circular buffer  
 		const char *res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
