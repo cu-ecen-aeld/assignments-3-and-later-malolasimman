@@ -239,7 +239,7 @@ void aesd_cleanup_module(void)
     /**
      * TODO: cleanup AESD specific poritions here as necessary
      */
-    cbuffer_exit_cleanup(&aesd_device->cb);
+    cbuffer_exit_cleanup(&aesd_device.cb);
     mutex_destroy(&aesd_device.dev_lock);
     unregister_chrdev_region(devno, 1);
 }
