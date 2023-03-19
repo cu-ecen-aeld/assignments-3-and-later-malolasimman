@@ -10,18 +10,20 @@
  * @copyright Copyright (c) 2019
  *
  */
-
+//Header
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/printk.h>
 #include <linux/types.h>
 #include <linux/cdev.h>
-#include <linux/fs.h> // file_operations
-#include <linux/slab.h> //dynamic memory
-#include <linux/string.h> //string header
+#include <linux/fs.h> 
+#include <linux/slab.h> 
+#include <linux/string.h> 
 #include <linux/errno.h> 
 #include <linux/uaccess.h>
 #include "aesdchar.h"
+
+//global variables
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
@@ -62,15 +64,18 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     int val = 0;
     ssize_t readbytes = 0;
     struct aesd_buffer_entry *ret =NULL;
+
     PDEBUG("read %zu bytes with offset %lld", count, *f_pos);
     /**
      * TODO: handle read struct aesd_circular_buffer *buffer
      */
+    //perfoming appropriate locking to ensure safe multi-thread and multi-process access
     val = mutex_lock_interruptible(&(device->dev_lock));
     if(val !=0)
     {
         return -ERESTARTSYS;
     }
+    // getting the entry offset for given fpos in circular buffer
     ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb, *f_pos, &entry_offset);
     if (ret == NULL)
     {
@@ -79,7 +84,9 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
         retval = 0;
         goto exit_read;
     }
+    //calculating number of bytes to be read from offset position
     readbytes = ret->size - entry_offset ;
+    //if readbytes exceed count truncating until count
     if(readbytes > count )
     { 
         readbytes = count ;
@@ -88,7 +95,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
         {
             PDEBUG("fail to copy from userspace");
             retval = -EFAULT;
-                    goto exit_read;
+            goto exit_read;
         }
         else 
         {
@@ -104,7 +111,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
         {
             PDEBUG("fail to copy from userspace");
             retval = -EFAULT;
-                    goto exit_read;
+            goto exit_read;
         }
         else 
         {
@@ -112,6 +119,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
             *f_pos = *f_pos + readbytes;
         }
     }
+    //goto implementation
 exit_read:
     mutex_unlock(&device->dev_lock);    
     return retval;
@@ -127,11 +135,13 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     struct aesd_dev *device = NULL;
     const char *res = NULL;
     int rc = 0;
+
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
     /**
      * TODO: handle write
      */
     device = (struct aesd_dev *)(filp->private_data);
+    //perfoming appropriate locking to ensure safe multi-thread and multi-process access
     rc = mutex_lock_interruptible(&(device->dev_lock));
     if(rc !=0)
     {
@@ -161,22 +171,28 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     {
         PDEBUG("fail to copy from userspace");
     }
+    //actual bytes coptied from user
     retval = count - ret;
+    //entry copied 
     device->cb_entry.size += retval;
+    //checking for first occurence of newline
     newline = strnchr(device->cb_entry.buffptr,device->cb_entry.size,'\n');
     if(newline != NULL)
     {
+        //writing to circular buffer
         res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
         if(res != NULL)
         {
+            //free memory if fail to write
             kfree(res);
         }
+        //reset
         device->cb_entry.buffptr =  NULL;
         device->cb_entry.size = 0;
         newline = NULL;
     }
     *f_pos = 0;
-
+    //goto implementation
 exit_write:
     mutex_unlock(&device->dev_lock);
     return retval;
