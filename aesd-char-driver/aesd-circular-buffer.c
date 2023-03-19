@@ -64,13 +64,16 @@ const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, 
     //Implemented as per description
     if( (add_entry != NULL) && (buffer != NULL) )
     {
+	if( (buffer->full) && (buffer->out_offs == buffer->in_offs ))
+    	{
+     	   overflow = buffer->entry[buffer->in_offs].buffptr;
+    	}
         if(buffer->full)
         {
 	   
             buffer->out_offs = (buffer->out_offs + 1 ) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
             buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
             buffer->entry[buffer->in_offs].size = add_entry->size;
-	    overflow = buffer->entry[buffer->in_offs].buffptr ;
 	    buffer->in_offs = (buffer->in_offs + 1) %  AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
         } 
         else 
@@ -91,6 +94,7 @@ const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, 
     }
     return overflow;
 }
+
 
 /**
 * Initializes the circular buffer described by @param buffer to an empty struct

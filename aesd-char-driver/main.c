@@ -81,8 +81,9 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
         goto exit_read;
     }
     readbytes = ret->size - entry_offset ;
-    if(readbytes <= count )
+    if(readbytes > count )
     { 
+	readbytes = count ;
         rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
         if(rc)
         {
@@ -98,7 +99,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     }
     else 
     {
-        readbytes = count ;
+        
         rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
         if(rc)
         {
@@ -122,7 +123,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     ssize_t retval = -ENOMEM;
     unsigned long ret=0;
-    struct aesd_dev *device = NULL;
+    struct aesd_dev *device = filp->private_data;
+    const char *res = NULL;
     int rc = 0;
     PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
     /**
@@ -133,10 +135,8 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     {
         return -ERESTARTSYS;
     }
-    device = filp->private_data;
     if(device->cb_entry.size == 0)   // malloc for first time
     {
-
         device->cb_entry.buffptr  = kmalloc(count, GFP_KERNEL);
         if(device->cb_entry.buffptr == NULL)
         {
@@ -146,15 +146,16 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
         if(ret)
         {
-            retval = -EFAULT;
-                    goto exit_write;
+                PDEBUG("fail to copy from userspace");
+                retval = -EFAULT;
+                goto exit_write;
         }
         device->cb_entry.size += count;
 
     }
     else //realloc
     {
-        
+
         device->cb_entry.buffptr  = krealloc(device->cb_entry.buffptr, count + device->cb_entry.size, GFP_KERNEL);
         if(device->cb_entry.buffptr == NULL)
         {
@@ -171,24 +172,23 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
         device->cb_entry.size += count;
 
     }
-    if(strchr(device->cb_entry.buffptr, '\n'))
+    if(strchr(device->cb_entry.buffptr, '\n')!= 0)
+    {
+        res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
+        if(res != NULL)
         {
-                //adding entry to circular buffer  
-                const char *res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
-                if(res != NULL)
-        {
-            kfree(res);
+                kfree(res);
         }
-                device->cb_entry.buffptr =  NULL; 
-                device->cb_entry.size = 0;
-        }
+        device->cb_entry.buffptr =  NULL;
+        device->cb_entry.size = 0;
+    }
     retval = count;
 
 exit_write:
-    *f_pos = 0;
-    mutex_unlock(&device->dev_lock);    
+    mutex_unlock(&device->dev_lock);
     return retval;
 }
+
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
     .read =     aesd_read,
