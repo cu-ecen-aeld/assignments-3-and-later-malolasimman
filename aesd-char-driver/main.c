@@ -61,6 +61,8 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     unsigned long rc = 0;
     struct aesd_dev *device = filp->private_data;
     int val = 0;
+    ssize_t readbytes = 0;
+    struct aesd_buffer_entry *ret =NULL;
     PDEBUG("read %zu bytes with offset %lld", count, *f_pos);
     /**
      * TODO: handle read struct aesd_circular_buffer *buffer
@@ -70,7 +72,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     {
         return -ERESTARTSYS;
     }
-    struct aesd_buffer_entry *ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb, *f_pos, &entry_offset);
+    ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb, *f_pos, &entry_offset);
     if (ret == NULL)
     {
         PDEBUG("read byte not found");
@@ -78,7 +80,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
         retval = 0;
         goto exit_read;
     }
-    ssize_t readbytes = ret->size - entry_offset ;
+    readbytes = ret->size - entry_offset ;
     if(readbytes <= count )
     { 
         rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
