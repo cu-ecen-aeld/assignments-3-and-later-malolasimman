@@ -66,10 +66,11 @@ const char* aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, 
     {
         if(buffer->full)
         {
-	    overflow = buffer->entry[buffer->in_offs].buffptr ;
+	   
             buffer->out_offs = (buffer->out_offs + 1 ) % AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
             buffer->entry[buffer->in_offs].buffptr = add_entry->buffptr;
             buffer->entry[buffer->in_offs].size = add_entry->size;
+	    overflow = buffer->entry[buffer->in_offs].buffptr ;
 	    buffer->in_offs = (buffer->in_offs + 1) %  AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED ;
         } 
         else 
@@ -114,8 +115,7 @@ void cbuffer_exit_cleanup(struct aesd_circular_buffer *buf)
                 {
 #ifdef __KERNEL__
                         kfree(entry->buffptr);
-#else
-                        free((char *)entry->buffptr);
+
 #endif
                 }
         }
