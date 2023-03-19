@@ -123,7 +123,7 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
 {
     ssize_t retval = -ENOMEM;
     char* newline = NULL;
-    unsigned long ret=0;
+    size_t ret=0;
     struct aesd_dev *device = NULL;
     const char *res = NULL;
     int rc = 0;
@@ -145,15 +145,6 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             PDEBUG("malloc failed");
             goto exit_write;
         }
-        ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
-        if(ret)
-        {
-                PDEBUG("fail to copy from userspace");
-                
-        }
-        retval = count - ret;
-        device->cb_entry.size += retval;
-
     }
     else //realloc
     {
@@ -164,23 +155,21 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
             PDEBUG("realloc failed");
             goto exit_write;
         }
-        ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
-        if(ret)
-        {
-            PDEBUG("fail to copy from userspace");
-            
-        }
-        retval = count - ret;
-        device->cb_entry.size += retval;
-
     }
-    newline =strchr(device->cb_entry.buffptr, '\n');
-    if(newline != 0)
+    ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
+    if(ret)
+    {
+        PDEBUG("fail to copy from userspace");
+    }
+    retval = count - ret;
+    device->cb_entry.size += retval;
+    newline = strnchr(device->cb_entry.buffptr,device->cb_entry.size,'\n');
+    if(newline != NULL)
     {
         res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
         if(res != NULL)
         {
-                kfree(res);
+            kfree(res);
         }
         device->cb_entry.buffptr =  NULL;
         device->cb_entry.size = 0;
