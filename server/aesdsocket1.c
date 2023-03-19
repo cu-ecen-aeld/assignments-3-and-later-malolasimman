@@ -26,14 +26,19 @@
 #define TIMESTAMP_LEN (128)
 
 //#define SOCKET_PATH "/var/tmp/aesdsocketdata"
-
+#if (USE_AESD_CHAR_DEVICE == 1)
+const char *SOCKET_PATH = "/dev/aesdchar";
+#elif (USE_AESD_CHAR_DEVICE == 0)
+const char *SOCKET_PATH = "/var/tmp/aesdsocketdata";
+#endif
+/*
 #define USE_AESD_CHAR_DEVICE    1
 #if (USE_AESD_CHAR_DEVICE)
 const char *SOCKET_PATH = "/dev/aesdchar";
 #elif (!USE_AESD_CHAR_DEVICE)
 const char *SOCKET_PATH = "/var/tmp/aesdsocketdata";
 #endif
-
+*/
 //function declarations
 void cleanup();
 SLIST_HEAD(client_list_head_t, thread_args);
@@ -251,7 +256,7 @@ int main(int argc, char *argv[])
   int listen_rc=0;
   int value = 1;
   //int total_packet_size=0;
-  fd = open("/var/tmp/aesdsocketdata", O_RDWR | O_APPEND | O_CREAT, 0744);
+  fd = open(SOCKET_PATH, (O_CREAT | O_APPEND | O_RDWR), 0744);
   if(fd == -1)
     {
       perror("file open failed\n");

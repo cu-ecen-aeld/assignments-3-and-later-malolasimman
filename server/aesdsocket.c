@@ -25,12 +25,12 @@
 #define buffer_size 1024
 #define TIMESTAMP_LEN (128)
 
-
 #define USE_AESD_CHAR_DEVICE    1
-#if (USE_AESD_CHAR_DEVICE)
-const char *FILE_PATH = "/dev/aesdchar";
-#elif (!USE_AESD_CHAR_DEVICE)
-const char *FILE_PATH = "/var/tmp/aesdsocketdata";
+
+#if (USE_AESD_CHAR_DEVICE == 1)
+#define FILE_PATH  "/dev/aesdchar"
+#elif (USE_AESD_CHAR_DEVICE == 0)
+#define FILE_PATH "/var/tmp/aesdsocketdata"
 #endif
 
 //function declarations
@@ -251,12 +251,13 @@ int main(int argc, char *argv[])
   int bind_rc=0;
   int listen_rc=0;
   int value = 1;
-  //int total_packet_size=0;
-  fd = open(FILE_PATH, O_RDWR | O_APPEND | O_CREAT, 0744);
+  
+  fd = open(FILE_PATH, (O_RDWR|O_CREAT|O_APPEND),0744 );
   if(fd == -1)
     {
-      perror("file open failed\n");
-      syslog(LOG_ERR,"file open failed");
+      perror("open() failed");
+      printf("errno = %d\n", errno);
+      syslog(LOG_ERR,"file open failed: %s", strerror(errno));
       cleanup();
       return (EXIT_FAILURE);
     }
