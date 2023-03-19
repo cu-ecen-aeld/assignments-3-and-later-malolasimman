@@ -33,11 +33,12 @@ struct aesd_dev aesd_device;
 
 int aesd_open(struct inode *inode, struct file *filp)
 {
+    struct aesd_dev *dev = NULL;
     PDEBUG("open");
     /**
      * TODO: handle open
      */
-    struct aesd_dev *dev; /* device information */
+    
     dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
     filp->private_data = dev; /* for other methods */
     return 0;
@@ -59,11 +60,12 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     size_t entry_offset = 0;
     unsigned long rc = 0;
     struct aesd_dev *device = filp->private_data;
+    int val = 0;
     PDEBUG("read %zu bytes with offset %lld", count, *f_pos);
     /**
      * TODO: handle read struct aesd_circular_buffer *buffer
      */
-    int val = mutex_lock_interruptible(&(device->dev_lock));
+    val = mutex_lock_interruptible(&(device->dev_lock));
     if(val !=0)
     {
         return -ERESTARTSYS;
