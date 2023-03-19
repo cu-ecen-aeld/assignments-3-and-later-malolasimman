@@ -83,7 +83,7 @@ ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_p
     readbytes = ret->size - entry_offset ;
     if(readbytes > count )
     { 
-        readbytes = count ;
+	readbytes = count ;
         rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
         if(rc)
         {
@@ -121,68 +121,73 @@ exit_read:
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
                 loff_t *f_pos)
 {
-        ssize_t retval = -ENOMEM;
-        struct aesd_dev *device = filp->private_data;
-        const char *res = NULL;
-        unsigned long ret=0;
-        PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
-        /**
-         * TODO: handle write
-         */
-        if(mutex_lock_interruptible(&device->dev_lock))
-                return -ERESTARTSYS;
+    ssize_t retval = -ENOMEM;
+    unsigned long ret=0;
+    struct aesd_dev *device = filp->private_data;
+    const char *res = NULL;
+    int rc = 0;
+    PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
+    /**
+     * TODO: handle write
+     */
+    rc = mutex_lock_interruptible(&(device->dev_lock));
+    if(rc !=0)
+    {
+        return -ERESTARTSYS;
+    }
+    if(device->cb_entry.size == 0)   // malloc for first time
+    {
+        device->cb_entry.buffptr  = kmalloc(count, GFP_KERNEL);
+        if(device->cb_entry.buffptr == NULL)
+        {
+            PDEBUG("malloc failed");
+            goto exit_write;
+        }
+        ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
+        if(ret)
+        {
+                PDEBUG("fail to copy from userspace");
+                retval = -EFAULT;
+                goto exit_write;
+        }
+        device->cb_entry.size += count;
 
-        if(device->cb_entry.size == 0)
-        {
-                device->cb_entry.buffptr = kmalloc(count, GFP_KERNEL);
-                if(device->cb_entry.buffptr == NULL)
-                {
-                        PDEBUG("malloc failed");
-                        goto exit_write;
-                }
-                ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
-                if(ret)
-                {
-                        PDEBUG("fail to copy from userspace");
-                        retval = -EFAULT;
-                        goto exit_write;
-                }
-                device->cb_entry.size += count;
-        }
-        else
-        {
-                //else realloc
-                device->cb_entry.buffptr = krealloc(device->cb_entry.buffptr, device->cb_entry.size + count, GFP_KERNEL);
-                if(device->cb_entry.buffptr == NULL)
-                {
-                        PDEBUG("realloc failed");
-                        goto exit_write;
-                }
-                ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
-                if(ret)
-                {
-                        PDEBUG("fail to copy from userspace");
-                        retval = -EFAULT;
-                        goto exit_write;
-                }
-                device->cb_entry.size += count;
-        }
-        if(strchr(device->cb_entry.buffptr, '\n') != 0)
-        {
-                res = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
-                if(res != NULL)
-                        kfree(res);
+    }
+    else //realloc
+    {
 
-                device->cb_entry.buffptr = NULL;
-                device->cb_entry.size = 0;
+        device->cb_entry.buffptr  = krealloc(device->cb_entry.buffptr, count + device->cb_entry.size, GFP_KERNEL);
+        if(device->cb_entry.buffptr == NULL)
+        {
+            PDEBUG("realloc failed");
+            goto exit_write;
         }
-        retval = count;
+        ret = copy_from_user((void *)&device->cb_entry.buffptr[device->cb_entry.size], buf, count);
+        if(ret)
+        {
+            PDEBUG("fail to copy from userspace");
+            retval = -EFAULT;
+                    goto exit_write;
+        }
+        device->cb_entry.size += count;
+
+    }
+    if(strchr(device->cb_entry.buffptr, '\n')!= 0)
+    {
+        res  = aesd_circular_buffer_add_entry(&device->cb, &device->cb_entry);
+        if(res != NULL)
+        {
+                kfree(res);
+        }
+        device->cb_entry.buffptr =  NULL;
+        device->cb_entry.size = 0;
+    }
+    retval = count;
 
 exit_write:
-        mutex_unlock(&device->dev_lock);
-        return retval;
+    mutex_unlock(&device->dev_lock);
+    return retval;
 }
-
 
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
@@ -244,3 +249,8 @@ void aesd_cleanup_module(void)
     mutex_destroy(&aesd_device.dev_lock);
     unregister_chrdev_region(devno, 1);
 }
+
+
+
+module_init(aesd_init_module);
+module_exit(aesd_cleanup_module);
