@@ -25,7 +25,6 @@
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
 
-MODULE_AUTHOR("Malola Simman"); /** TODO: fill in your name **/
 MODULE_LICENSE("Dual BSD/GPL");
 
 struct aesd_dev aesd_device;
@@ -37,7 +36,10 @@ int aesd_open(struct inode *inode, struct file *filp)
 	/**
 	 * TODO: handle open
 	 */
+  //scull code reference
+
 	dev = container_of(inode->i_cdev, struct aesd_dev, cdev);
+	//will point to aesd_dev struct
 	filp->private_data = dev;
 
 	return 0;
@@ -56,121 +58,157 @@ int aesd_release(struct inode *inode, struct file *filp)
 ssize_t aesd_read(struct file *filp, char __user *buf, size_t count, loff_t *f_pos)
 {
 	ssize_t retval = 0;
-	struct aesd_dev *device = NULL;
-	struct aesd_buffer_entry *ret = NULL;
-  	size_t entry_offset = 0;
-  	size_t readbytes = 0;
-  	size_t rc = 0;
 	
-  	PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
-	device = (struct aesd_dev *)filp->private_data;
-	if(mutex_lock_interruptible(&(device->dev_lock)))
+	struct aesd_dev *l_dev = NULL;
+	struct aesd_buffer_entry *loc_hit = NULL;
+  size_t off_byte_pos = 0;
+  size_t bytes_to_be_read_out = 0;
+  size_t bytes_failed_to_copy = 0;
+	
+  PDEBUG("read %zu bytes with offset %lld",count,*f_pos);
+	//fetch the content received from the script
+	l_dev = (struct aesd_dev *)filp->private_data;
+	
+	//take mutex
+	if(mutex_lock_interruptible(&(l_dev->dev_lock)))
 	{
-	  PDEBUG("failed to acquire mutexlock");
+	  PDEBUG("failed to acquire lock:read");
 	  return -ERESTARTSYS;
 	}
 	
-	ret = aesd_circular_buffer_find_entry_offset_for_fpos(&device->cb, *f_pos, &entry_offset);
+  //function would return the block as per the char offset value, initial it will be 0 
+  //at first read
+	loc_hit = aesd_circular_buffer_find_entry_offset_for_fpos(&l_dev->cb, *f_pos, &off_byte_pos);
 	
-	if(ret == NULL)
+	if(loc_hit == NULL)
 	{
 		retval = 0;
 		*f_pos = 0;
-	  mutex_unlock(&(device->dev_lock));
+	  //unlock mutex
+	  mutex_unlock(&(l_dev->dev_lock));
 	  return retval;
 	}
-	else if(ret != NULL)
+	else if(loc_hit != NULL)
 	{   
-	   readbytes = (ret->size - entry_offset);
-	   if(readbytes > count)
+	   bytes_to_be_read_out = (loc_hit->size - off_byte_pos);
+	   if(bytes_to_be_read_out > count)
 	   {
-	      readbytes = count;
+	      //restricting to bytes requested by user
+	      bytes_to_be_read_out = count;
  	   }
 	}
-	else{}
-	rc = copy_to_user(buf, (ret->buffptr+entry_offset), readbytes);
-	if(rc != 0)
+	else
+	{
+	  PDEBUG("Should not reached here");
+	}
+	
+	bytes_failed_to_copy = copy_to_user(buf, (loc_hit->buffptr+off_byte_pos), bytes_to_be_read_out);
+	if(bytes_failed_to_copy != 0)
 	{
 	  retval = -EFAULT;
-	  mutex_unlock(&(device->dev_lock));
+	  //unlock mutex
+	  mutex_unlock(&(l_dev->dev_lock));
 	  return retval;
 	}
 	else
 	{
-	  retval = readbytes;
+	  // bytes that were succesfully copied to userspace
+	  retval = bytes_to_be_read_out;
 	}
-	*f_pos += readbytes;
-	mutex_unlock(&(device->dev_lock));
+	
+	//increment position of fpos
+	*f_pos += bytes_to_be_read_out;
+	
+  //unlock mutex
+  mutex_unlock(&(l_dev->dev_lock));
 	return retval;
 }
 
 ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count, loff_t *f_pos)
 {
 	ssize_t retval = -ENOMEM;
-	unsigned long  ret = 0;
-	const char * res = 0;
+	size_t no_of_bytes_not_copied = 0;
+
 	/**
 	 * TODO: handle write
 	 */
-	char* newline = NULL;  
-	struct aesd_dev *device = NULL;
+	char* check_newline = NULL;   //will change when \n is detected
+	struct aesd_dev *l_dev = NULL;
+	const char *data_overflow = NULL;
 	
-	device = (struct aesd_dev *)(filp->private_data);
+	//fetch the content received from the script
+	l_dev = (struct aesd_dev *)(filp->private_data);
 	
 	PDEBUG("write %zu bytes with offset %lld",count,*f_pos);
 	
-	if(mutex_lock_interruptible(&(device->dev_lock)))
+	if(mutex_lock_interruptible(&(l_dev->dev_lock)))
 	{
 	  PDEBUG("Failed to acquire lock");
 	  return -ERESTARTSYS;
 	}
 	
-	if(device->cb_entry.size == 0)
+	//allocate memory as big as count, when the memory is initially empty
+	if(l_dev->cb_entry.size == 0)
 	{
-                device->cb_entry.buffptr = kmalloc(count*sizeof(char),GFP_KERNEL);
-                if(device->cb_entry.buffptr == NULL)
-      		{
-			PDEBUG("malloc failed");
-        		mutex_unlock(&(device->dev_lock));
-        		return retval;
-      		}
+      l_dev->cb_entry.buffptr = kmalloc(count*sizeof(char),GFP_KERNEL);
+      
+      if(l_dev->cb_entry.buffptr == NULL)
+      {
+        //error in allocation
+        PDEBUG("NULL: buffptr 1");
+        mutex_unlock(&(l_dev->dev_lock));
+        return retval;
+      }
 	}
 	else
 	{
-	  	device->cb_entry.buffptr = krealloc(device->cb_entry.buffptr, (device->cb_entry.size + count), GFP_KERNEL);
-	  	if(device->cb_entry.buffptr == NULL)
-	  	{
-	     		PDEBUG("realloc failed");
-	     		mutex_unlock(&(device->dev_lock));
-	     		return retval;
-	  	}
-	}
-	
-	ret = copy_from_user((void *)(&device->cb_entry.buffptr[device->cb_entry.size]),buf,count);
-	if(ret != 0)
-	{
-	  PDEBUG("fail to copy entire bytes");
-	}
-	retval = count - ret;
-	device->cb_entry.size = device->cb_entry.size + retval;
-	
-	newline = strchr(device->cb_entry.buffptr, '\n');
-	if(newline != NULL)
-	{
-	
-	  res = aesd_circular_buffer_add_entry(&device->cb,&device->cb_entry);
-	  if(res != NULL)
+	  //\n was not detected previously. Hence, a realloc till \n is detected
+	  l_dev->cb_entry.buffptr = krealloc(l_dev->cb_entry.buffptr, (l_dev->cb_entry.size + count), GFP_KERNEL);
+	  
+	  if(l_dev->cb_entry.buffptr == NULL)
 	  {
-	    kfree(res);
+	     PDEBUG("NULL: buffptr 2");
+	     mutex_unlock(&(l_dev->dev_lock));
+	     return retval;
 	  }
-	  device->cb_entry.buffptr = NULL; 
-	  device->cb_entry.size = 0; 
-	  newline = NULL;
+	}
+	
+	//update content .buffptr
+	no_of_bytes_not_copied = copy_from_user((void *)(&l_dev->cb_entry.buffptr[l_dev->cb_entry.size]),buf,count);
+	if(no_of_bytes_not_copied != 0)
+	{
+	  PDEBUG("No of bytes failed to copy to kernel space is %ld",no_of_bytes_not_copied);
+	}
+	
+	//update with actual bytes copied subtracting no of bytes faie to copy as well
+	retval = count - no_of_bytes_not_copied;
+	
+	//data copied till now
+	l_dev->cb_entry.size = l_dev->cb_entry.size + retval;
+	
+	check_newline = strnchr(l_dev->cb_entry.buffptr,l_dev->cb_entry.size,'\n');
+	if(check_newline != NULL)
+	{
+	  //void aesd_circular_buffer_add_entry(struct aesd_circular_buffer *buffer, const struct aesd_cb_entry *add_entry)
+	  //write to the buffer
+	  data_overflow = aesd_circular_buffer_add_entry(&l_dev->cb,&l_dev->cb_entry);	// two params:  1.content 2.size
+	    
+	  if(data_overflow != NULL)
+	  {
+	    kfree(data_overflow);
+	  }
+	  
+	  //reset everything as data is written to one of the circular buffer
+	  l_dev->cb_entry.buffptr = NULL; 
+	  l_dev->cb_entry.size = 0; 
+	  
+	  //reset the system for new \n
+	  check_newline = NULL;
 	}
 	
 	*f_pos = 0;
 	
-	mutex_unlock(&(device->dev_lock));
+	mutex_unlock(&(l_dev->dev_lock));
 	return retval;
 }
 
@@ -213,6 +251,9 @@ int aesd_init_module(void)
 	/**
 	 * TODO: initialize the AESD specific portion of the device
 	 */
+	 //allocate memory, init lock, init the circular buffer
+	 //circular buffer is already iniialised
+	aesd_circular_buffer_init(&aesd_device.cb);
 	mutex_init(&aesd_device.dev_lock);
 	 
 	result = aesd_setup_cdev(&aesd_device);
@@ -234,7 +275,7 @@ void aesd_cleanup_module(void)
 	 * TODO: cleanup AESD specific poritions here as necessary
 	 */
 	//free memory, release lock, circular buffer related handling
-  	cbuffer_exit_cleanup(&aesd_device.cb);
+  cbuffer_exit_cleanup(&aesd_device.cb);
     
 	unregister_chrdev_region(devno, 1);
 }
