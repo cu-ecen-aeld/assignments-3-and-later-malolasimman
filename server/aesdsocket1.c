@@ -20,7 +20,6 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/queue.h>
-#include "../aesd-char-driver/aesd_ioctl.h"
 
 //Macros
 #define buffer_size 1024
@@ -51,8 +50,7 @@ int res =0;
 volatile int sig_flag = 0 ;
 pthread_mutex_t lock;
 socklen_t size=sizeof(struct sockaddr);
-const char* ioctl_str= "AESDCHAR_IOCSEEKTO:";
-
+// size
 struct thread_args
 {
   struct sockaddr_in IP_addr;
@@ -144,76 +142,58 @@ void* thread_func(void *arg)
         }
       memcpy(ptr+bytes_to_write-i,buffer,i);// copying the buffer to pointer
       memset(buffer,0,buffer_size);// clearing buffer
-      if(write_flag)
-      {
-        if(strncmp(ptr, ioctl_str, 19) == 0)
-        {
-          struct aesd_seekto llseek_buffer;   
-          if(sscanf(ptr, "AESDCHAR_IOCSEEKTO:%d,%d", &llseek_buffer.write_cmd, &llseek_buffer.write_cmd_offset) !=2)
-          {
-            syslog(LOG_ERR, "Invalid argument");
-          }
-          syslog(LOG_DEBUG, "ioctl cmd  %d , arg %d", llseek_buffer.write_cmd, llseek_buffer.write_cmd_offset);
-          int value = ioctl(fd, AESDCHAR_IOCSEEKTO, &llseek_buffer);
-          if(value)
-          {
-            syslog(LOG_ERR, "Error ioctl error");
-          }
-        }
-        else
+      if(write_flag==true)
         {
           pthread_mutex_lock(&lock);
           wr_bytes= write(fd,ptr,bytes_to_write); //write packets contents to file
           pthread_mutex_unlock(&lock);
-           write_flag=false;
           if(wr_bytes!=bytes_to_write)
-          {
-             free(ptr);
-             perror("write");
-             return NULL;
+            {
+              free(ptr);
+              perror("write");
+              return NULL;
+            }
+          write_flag=false;
+          total_packet_size += bytes_to_write;
+          char *read_arr;
+          pthread_mutex_lock(&lock);
+          lseek(fd, 0, SEEK_SET);
+          int index = 0;
+          char ch;
+          for (; read(fd,&ch,1) > 0; index++);
+          lseek(fd, 0, SEEK_SET);
+          read_arr = (char*) malloc(sizeof(char)* index);
+          int rd_status=read(fd, read_arr,index);//reading packet data
+          pthread_mutex_unlock(&lock);
+          if(rd_status==-1)
+            {
+              free(ptr);
+              syslog(LOG_ERR, "fail to read");
+              perror("read");
+              return NULL;
+            }
+          else if(rd_status < total_packet_size)
+            {
+              free(ptr);
+              syslog(LOG_ERR, "Not read complete bytes");
+              return NULL;
+            }
+          for(int j=0; j<total_packet_size; j++){
+              printf("%c",read_arr[j]);
           }
-        }
-        total_packet_size += bytes_to_write;
-        char *read_arr;
-        pthread_mutex_lock(&lock);
-        lseek(fd, 0, SEEK_SET);
-        int index = 0;
-        char ch;
-        for (; read(fd,&ch,1) > 0; index++);
-        lseek(fd, 0, SEEK_SET);
-        read_arr = (char*) malloc(sizeof(char)* index);
-        int rd_status=read(fd, read_arr,index);//reading packet data
-        pthread_mutex_unlock(&lock);
-        if(rd_status==-1)
-        {
-          free(ptr);
-          syslog(LOG_ERR, "fail to read");
-          perror("read");
-          return NULL;
-        }
-        else if(rd_status < total_packet_size)
-        {
-          free(ptr);
-          syslog(LOG_ERR, "Not read complete bytes");
-          return NULL;
-        }
-        for(int j=0; j<total_packet_size; j++){
-            printf("%c",read_arr[j]);
-        }
-        send_rc=send(accept_rc,read_arr,index,0);//sending packet to client
-        free(read_arr);
-    
-        if(send_rc==-1)
-        {
-            free(ptr);
-            syslog(LOG_ERR, "fail to send packets");
-            perror("send");
-            return NULL;
-        }
-        bytes_to_write =0;
-      }
+          send_rc=send(accept_rc,read_arr,index,0);//sending packet to client
+          free(read_arr);
         
-    }
+          if(send_rc==-1)
+            {
+              free(ptr);
+              syslog(LOG_ERR, "fail to send packets");
+              perror("send");
+              return NULL;
+            }
+          
+          bytes_to_write =0;
+        }
       rec_fd=recv(accept_rc,buffer,buffer_size,0);//receiving next packets
       if(rec_fd==-1)
         {
@@ -221,7 +201,7 @@ void* thread_func(void *arg)
           perror("recv");
           return NULL;
         }
-   
+    }
     free(ptr);
   return NULL;
 }
@@ -272,7 +252,7 @@ int main(int argc, char *argv[])
   int listen_rc=0;
   int value = 1;
   
-  fd = open(FILE_PATH, (O_RDWR|O_CREAT|O_APPEND),0766 );
+  fd = open(FILE_PATH, (O_RDWR|O_CREAT|O_APPEND),0744 );
   if(fd == -1)
     {
       perror("open() failed");
@@ -308,12 +288,12 @@ int main(int argc, char *argv[])
   //create socket
   sockfd=socket(AF_INET, SOCK_STREAM, 0);
   if(sockfd==-1)
-  {
-    syslog(LOG_ERR, "fail to create socket");
-    perror("socket");
-    cleanup();
-    exit(1);
-  }
+    {
+      syslog(LOG_ERR, "fail to create socket");
+      perror("socket");
+      cleanup();
+      exit(1);
+    }
   // Set socket options for reusing address and port
   if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &value, sizeof(int)))
     {
@@ -432,4 +412,3 @@ void cleanup()
   // close the system log
   closelog();
 }
-

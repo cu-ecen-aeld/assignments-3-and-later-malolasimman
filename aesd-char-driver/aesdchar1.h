@@ -34,9 +34,7 @@ struct aesd_dev
     struct mutex dev_lock;                   /* device mutex lock      */
     struct aesd_circular_buffer cb;   	/* circular buffer structure */
     struct aesd_buffer_entry cb_entry; 	/* entry in buffer	*/
-    size_t written_bytes;
 };
 
 
 #endif /* AESD_CHAR_DRIVER_AESDCHAR_H_ */
-
