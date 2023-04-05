@@ -23,8 +23,6 @@
 #include <linux/uaccess.h>
 #include "aesdchar.h"
 
-#include "aesd_ioctl.h"
-
 //global variables
 int aesd_major =   0; // use dynamic major
 int aesd_minor =   0;
@@ -197,109 +195,14 @@ ssize_t aesd_write(struct file *filp, const char __user *buf, size_t count,
     //goto implementation
 exit_write:
     mutex_unlock(&device->dev_lock);
-    device->written_bytes =retval;
     return retval;
 }
-
-loff_t custom_seek(struct file *file, loff_t offset, int cur_pos)
-{
-    struct aesd_dev *devptr = file->private_data;
-    
-    loff_t mov_cur;
-    switch (cur_pos) 
-    {
-    case 0: /* SEEK_SET */
-        mov_cur = offset;
-        break;
-
-    case 1: /* SEEK_CUR */
-        mov_cur = file->f_pos + offset;
-        break;
-
-    case 2: /* SEEK_END */
-        mov_cur = devptr->written_bytes;
-        break;
-
-    default:
-        return -EINVAL;
-    }
-    file->f_pos = mov_cur;
-    return mov_cur;
-}
-
-long custom_ioctl(struct file *file, unsigned int cmd, unsigned long arg) 
-{
-    long ret=0;
-    struct aesd_dev *device = NULL;
-    struct aesd_seekto buffer;
-    struct aesd_dev *dev = file->private_data;
-    int rc=0,iter=0;
-    long cur_pos;
-    /* Reference - Chapter 6 Device Drivers */
-    if(_IOC_TYPE(cmd) != AESD_IOC_MAGIC)
-        return -ENOTTY;
-    if(_IOC_NR(cmd) > AESDCHAR_IOC_MAXNR)
-        return -ENOTTY;
-
-    
-    switch (cmd)
-    {
-        case AESDCHAR_IOCSEEKTO:
-            if(!(copy_from_user(&buffer, (const void __user *)arg, sizeof(buffer))))
-            {
-                if (buffer.write_cmd >= AESDCHAR_MAX_WRITE_OPERATIONS_SUPPORTED)
-                {
-                    ret = -EINVAL;
-                    return ret;
-                }
-                if (buffer.write_cmd_offset > dev->cb.entry[buffer.write_cmd].size)
-                {
-                    ret =  -EINVAL;
-                    return ret; 
-                }
-                rc = mutex_lock_interruptible(&(device->dev_lock));
-                if(rc !=0)
-                {
-                    ret = -ERESTARTSYS;
-                    return ret;
-                }
-                while (iter < buffer.write_cmd)
-                {
-                    if(device->cb.entry[iter].size)
-                    {
-                        cur_pos = cur_pos + device->cb.entry[iter].size;
-                        iter++;
-                    }
-                    else
-                    {
-                        ret = -EINVAL;
-                        mutex_unlock(&(device->dev_lock));
-                        return ret;
-                    }
-                }
-                cur_pos = cur_pos + buffer.write_cmd_offset;
-                mutex_unlock(&(device->dev_lock));
-            }
-            else
-            {
-                ret = -EFAULT;
-            }
-            break;
-        default : 
-                ret = -ENOTTY;
-            break;
-    }
-    return ret;
-}
-
 struct file_operations aesd_fops = {
     .owner =    THIS_MODULE,
     .read =     aesd_read,
     .write =    aesd_write,
     .open =     aesd_open,
     .release =  aesd_release,
-    .llseek = custom_seek,
-    .unlocked_ioctl = custom_ioctl
 };
 
 static int aesd_setup_cdev(struct aesd_dev *dev)
@@ -359,4 +262,3 @@ void aesd_cleanup_module(void)
 
 module_init(aesd_init_module);
 module_exit(aesd_cleanup_module);
-
